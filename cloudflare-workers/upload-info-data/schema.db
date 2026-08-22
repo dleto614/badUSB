@@ -1,0 +1,31 @@
+DROP TABLE IF EXISTS payload;
+DROP TABLE IF EXISTS categories;
+DROP TABLE IF EXISTS computer_info;
+
+CREATE TABLE IF NOT EXISTS computer_info (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    machine_id TEXT UNIQUE NOT NULL,
+    created_at TEXT NOT NULL DEFAULT current_timestamp
+);
+
+CREATE TABLE IF NOT EXISTS categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    category TEXT NOT NULL,
+    category_hash TEXT UNIQUE NOT NULL,
+    created_at TEXT NOT NULL DEFAULT current_timestamp
+);
+
+CREATE TABLE IF NOT EXISTS payload (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    scan_id TEXT NOT NULL,
+    payload_timestamp TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    
+    category_hash TEXT NOT NULL,
+    machine_id TEXT NOT NULL,
+    
+    created_at TEXT NOT NULL DEFAULT current_timestamp,
+    
+    FOREIGN KEY(category_hash) REFERENCES categories(category_hash) ON DELETE CASCADE,
+    FOREIGN KEY(machine_id) REFERENCES computer_info(machine_id) ON DELETE CASCADE
+);
